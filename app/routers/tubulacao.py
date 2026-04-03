@@ -314,7 +314,24 @@ def criar_pasta_por_sth(
     """Criar uma pasta de teste a partir de um STH."""
     sth = db.query(STH).filter(STH.id == payload.sth_id).first()
     if not sth:
-        raise HTTPException(404, "STH não encontrado")
+        # Se STH não existe, criar um novo com os dados fornecidos
+        if not payload.codigo_sth:
+            raise HTTPException(400, "STH não encontrado e nenhum código foi fornecido para criação")
+        
+        # Criar novo STH
+        sth = STH(
+            id=payload.sth_id,
+            codigo=payload.codigo_sth,
+            descricao=payload.descricao or "",
+            sop=payload.sop,
+            sub_sop=payload.ssop,
+        )
+        db.add(sth)
+        try:
+            db.flush()  # Flush to get the ID without committing
+        except Exception as e:
+            logger.error(f"Erro ao criar STH {payload.sth_id}: {e}")
+            raise HTTPException(500, f"Erro ao criar STH: {str(e)}")
 
     # Verifica se já existe pasta para este STH
     existing = db.query(PastaTeste).filter(PastaTeste.sth_id == sth.id).first()
