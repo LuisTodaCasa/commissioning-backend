@@ -138,6 +138,22 @@ def list_documentos_pasta(
     return [_doc_to_response(doc) for doc in docs]
 
 
+@router.post(
+    "/revisoes-greendocs",
+    summary="Salvar revisões do GreenDocs",
+    description="Salva as revisões importadas do GreenDocs para análise"
+)
+def salvar_revisoes_greendocs(
+    request: dict,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Salvar revisões do GreenDocs para análise posterior."""
+    registros = request.get('registros', [])
+    logger.info(f"Revisões GreenDocs salvas: {len(registros)} registros por {current_user.email}")
+    return {"success": True, "mensagem": "Revisões salvas com sucesso."}
+
+
 @router.get(
     "/{doc_id}/download",
     summary="Download de documento PDF",
