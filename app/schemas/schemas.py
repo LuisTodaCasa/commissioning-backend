@@ -641,6 +641,11 @@ class CriarPastaPorSTHRequest(BaseModel):
     sth_id: int = Field(..., description="ID do STH")
     numero_pasta: str = Field(..., min_length=1, description="Número da pasta de teste")
     data_criacao: Optional[datetime] = Field(None, description="Data de criação da pasta")
+    # Dados opcionais do STH para criação automática se não existir
+    codigo_sth: Optional[str] = Field(None, description="Código do STH")
+    descricao: Optional[str] = Field(None, description="Descrição do STH")
+    sop: Optional[str] = Field(None, description="SOP do STH")
+    ssop: Optional[str] = Field(None, description="Sub-SOP do STH")
 
 
 # Resolve forward refs
