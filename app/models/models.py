@@ -48,6 +48,7 @@ class TipoDocumento(str, enum.Enum):
     ISOMETRICO = "isometrico"
     LISTA_SUPORTES = "lista_suportes"
     MAPA_JUNTAS = "mapa_juntas"
+    OUTRO = "outro"
 
 
 class TipoModelo(str, enum.Enum):
