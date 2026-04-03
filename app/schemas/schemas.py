@@ -236,6 +236,7 @@ class PastaTesteDetail(BaseModel):
     descricao_sistema: Optional[str] = None
     pressao_teste: Optional[float] = None
     status: str
+    disciplina: Optional[str] = None
     data_criacao: Optional[datetime] = None
     criado_em: datetime
     atualizado_em: Optional[datetime] = None
@@ -243,6 +244,7 @@ class PastaTesteDetail(BaseModel):
     documentos: List[DocumentoResponse] = []
     testes: List["PastaTesteResponse"] = []
     total_relatorios: int = 0
+    spools: List[dict] = []
 
     class Config:
         from_attributes = True
