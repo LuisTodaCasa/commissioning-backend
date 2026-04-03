@@ -10,7 +10,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user, require_roles
 from app.models.models import (
     PastaTeste, PastaLinha, LinhaTubulacao, DocumentoPasta,
-    PastaTeste_Teste, Relatorio, StatusPasta, ModeloRelatorio
+    PastaTeste_Teste, Relatorio, StatusPasta, ModeloRelatorio, STH, Spool
 )
 from app.schemas.schemas import (
     PastaCreate, PastaUpdate, PastaResponse, PastaListResponse,
@@ -150,6 +150,29 @@ def get_pasta(
         for pt in sorted(pasta.testes, key=lambda x: x.ordem)
     ]
 
+    # Spools do STH associado
+    spools = []
+    if pasta.sth_id:
+        sth = db.query(STH).filter(STH.id == pasta.sth_id).first()
+        if sth:
+            spools = [
+                {
+                    'id': s.id,
+                    'codigo_spool': s.codigo,
+                    'origem': s.origem,
+                    'destino': s.destino,
+                    'isometrico_ref': s.isometrico_ref,
+                }
+                for s in sth.spools
+            ]
+
+    # Derivar disciplina a partir do SOP (Tubulação se tem SOP, senão vazio)
+    disciplina = None
+    if pasta.sth_id:
+        sth = db.query(STH).filter(STH.id == pasta.sth_id).first()
+        if sth and sth.sop:
+            disciplina = "Tubulação"  # SOPs estão associados à Tubulação
+
     total_relatorios = db.query(Relatorio).filter(Relatorio.pasta_id == pasta_id).count()
 
     return PastaTesteDetail(
@@ -159,6 +182,7 @@ def get_pasta(
         sth_id=pasta.sth_id,
         descricao_sistema=pasta.descricao_sistema,
         pressao_teste=pasta.pressao_teste,
+        disciplina=disciplina,
         status=pasta.status.value if hasattr(pasta.status, 'value') else str(pasta.status),
         data_criacao=pasta.data_criacao,
         criado_em=pasta.criado_em,
@@ -166,6 +190,7 @@ def get_pasta(
         linhas=linhas,
         documentos=documentos,
         testes=testes,
+        spools=spools,
         total_relatorios=total_relatorios,
     )
 
