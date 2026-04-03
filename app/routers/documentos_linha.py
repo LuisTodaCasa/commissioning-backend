@@ -374,10 +374,20 @@ async def upload_lote_inteligente(
                     if matched_key and not pendentes_fluxo.get(matched_key):
                         del pendentes_fluxo[matched_key]
 
+            # Se não encontrou correspondência, criar documento genérico
             if not doc_encontrado:
-                raise ValueError(
-                    f"Número '{numero_extraido}' não encontrado nos documentos esperados do STH"
+                # Criar novo DocumentoLinha genérico (aceitando qualquer PDF)
+                doc_encontrado = DocumentoLinha(
+                    sth_id=sth_id,
+                    linha_id=None,  # Sem linha específica
+                    tipo_documento='outro',  # Tipo genérico
+                    numero_documento=numero_extraido,
+                    ativo=True,
                 )
+                db.add(doc_encontrado)
+                db.flush()
+                tipo_match = "outro"
+                destino_info = f"Documento Genérico ({numero_extraido})"
 
             # Salvar arquivo
             upload_dir = os.path.join(
