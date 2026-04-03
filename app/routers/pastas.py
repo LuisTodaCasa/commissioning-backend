@@ -116,11 +116,21 @@ def get_pasta(
     """Obter detalhes completos de uma pasta de teste (linhas, documentos, testes)."""
     pasta = _get_pasta_or_404(pasta_id, db)
 
-    # Linhas associadas (via eager loading)
-    linhas = [
-        LinhaResponse.model_validate(pl.linha)
-        for pl in pasta.linhas if pl.linha
-    ]
+    # Linhas associadas - retornar linhas do STH, não apenas as vinculadas à pasta
+    linhas = []
+    if pasta.sth_id:
+        sth = db.query(STH).filter(STH.id == pasta.sth_id).first()
+        if sth:
+            linhas = [
+                LinhaResponse.model_validate(sth_linha.linha_cat)
+                for sth_linha in sth.sth_linhas if sth_linha.linha_cat
+            ]
+    else:
+        # Fallback: retornar linhas explicitamente vinculadas
+        linhas = [
+            LinhaResponse.model_validate(pl.linha)
+            for pl in pasta.linhas if pl.linha
+        ]
 
     # Documentos com URL de download
     documentos = [
