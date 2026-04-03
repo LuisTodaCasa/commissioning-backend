@@ -7,7 +7,10 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.database import get_db
 from app.core.security import require_roles, get_current_user, hash_password
-from app.models.models import Usuario, Disciplina, UsuarioDisciplina
+from app.models.models import (
+    Usuario, Disciplina, UsuarioDisciplina, PastaTeste, DocumentoPasta,
+    STH, DocumentoLinha, Spool
+)
 from app.schemas.schemas import (
     UsuarioResponse, UsuarioUpdate, UsuarioCreate,
     AssignDisciplinasRequest, DisciplinaResponse, DisciplinaSimples
@@ -137,3 +140,55 @@ def get_user_disciplinas(
                 id=disc.id, nome=disc.nome, descricao=disc.descricao, ativo=disc.ativo
             ))
     return result
+
+
+@router.post("/admin/limpar-dados-teste")
+def limpar_dados_teste(
+    current_user=Depends(require_roles(["Administrador"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Limpa todos os dados de teste do banco: pastas, linhas, documentos, STHs.
+    Mantém usuários e disciplinas intactos.
+    """
+    try:
+        # Contar registros antes
+        pasta_count = db.query(PastaTeste).count()
+        doc_count = db.query(DocumentoPasta).count()
+        sth_count = db.query(STH).count()
+        doc_linha_count = db.query(DocumentoLinha).count()
+        
+        # Limpar dados na ordem correta (respeitando foreign keys)
+        # 1. Documentos de pasta
+        db.query(DocumentoPasta).delete()
+        
+        # 2. Documentos de linha
+        db.query(DocumentoLinha).delete()
+        
+        # 3. Pastas de teste (cascade deleta PastaLinha e PastaTeste_Teste)
+        db.query(PastaTeste).delete()
+        
+        # 4. Spools
+        db.query(Spool).delete()
+        
+        # 5. STH (Sistema)
+        db.query(STH).delete()
+        
+        db.commit()
+        
+        logger.info(f"Dados de teste limpos por {current_user.email}: "
+                   f"Pastas ({pasta_count}), Docs ({doc_count}), STHs ({sth_count}), DocLinhas ({doc_linha_count})")
+        
+        return {
+            "message": "Dados de teste limpos com sucesso",
+            "registros_deletados": {
+                "pastas_teste": pasta_count,
+                "documentos_pasta": doc_count,
+                "sths": sth_count,
+                "documentos_linha": doc_linha_count,
+            }
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Erro ao limpar dados: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro ao limpar dados: {str(e)}")
