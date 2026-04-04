@@ -94,6 +94,9 @@ class LinhaResponse(BaseModel):
     sth: Optional[str] = None
     pressao_teste: Optional[float] = None
     descricao_sistema: Optional[str] = None
+    fluido: Optional[str] = None
+    descricao_fluido: Optional[str] = None
+    pressao_operacao: Optional[float] = None
     criado_em: datetime
 
     class Config:
