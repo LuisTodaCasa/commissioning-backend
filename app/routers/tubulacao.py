@@ -62,13 +62,10 @@ async def importar_excel(
     except Exception as exc:
         raise HTTPException(400, f"Erro ao ler planilha: {exc}")
 
-    # Normalizar nomes de colunas (remove quebras de linha e espaços extras)
-    col_map = {}
-    for c in df.columns:
-        import re
-        norm = re.sub(r'\s+', ' ', str(c).strip()).upper()
-        col_map[c] = norm
-    df.rename(columns=col_map, inplace=True)
+    # Normalizar nomes de colunas (remove quebras de linha, \r, \n, tabs e espaços extras)
+    import re
+    df.columns = df.columns.str.replace('\n', ' ').str.replace('\r', ' ').str.replace('\t', ' ').str.strip()
+    df.columns = [re.sub(r'\s+', ' ', str(c).strip()).upper() for c in df.columns]
 
     required = {"STH", "LINHA", "SPOOL"}
     missing = required - set(df.columns)
