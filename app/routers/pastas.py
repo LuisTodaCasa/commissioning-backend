@@ -10,12 +10,13 @@ from app.core.database import get_db
 from app.core.security import get_current_user, require_roles
 from app.models.models import (
     PastaTeste, PastaLinha, LinhaTubulacao, DocumentoPasta,
-    PastaTeste_Teste, Relatorio, StatusPasta, ModeloRelatorio, STH, Spool
+    PastaTeste_Teste, Relatorio, StatusPasta, ModeloRelatorio, STH, Spool, STHLinha
 )
 from app.schemas.schemas import (
     PastaCreate, PastaUpdate, PastaResponse, PastaListResponse,
     PastaLinhaAssign, LinhaResponse, PastaTesteDetail,
-    DocumentoResponse, PastaTesteResponse, ModeloResponse
+    DocumentoResponse, PastaTesteResponse, ModeloResponse,
+    LinhaCatalogoDetailResponse, SpoolDetailResponse
 )
 
 logger = logging.getLogger(__name__)
@@ -116,23 +117,61 @@ def get_pasta(
     """Obter detalhes completos de uma pasta de teste (linhas, documentos, testes)."""
     pasta = _get_pasta_or_404(pasta_id, db)
 
-    # Linhas associadas - retornar linhas do STH, não apenas as vinculadas à pasta
-    linhas = []
+    # ── Buscar STH uma única vez ──────────────────────────────────────
+    sth_obj = None
     if pasta.sth_id:
-        sth = db.query(STH).filter(STH.id == pasta.sth_id).first()
-        if sth:
-            linhas = [
-                LinhaResponse.model_validate(sth_linha.linha_cat)
-                for sth_linha in sth.sth_linhas if sth_linha.linha_cat
-            ]
-    else:
-        # Fallback: retornar linhas explicitamente vinculadas
-        linhas = [
-            LinhaResponse.model_validate(pl.linha)
-            for pl in pasta.linhas if pl.linha
-        ]
+        sth_obj = db.query(STH).filter(STH.id == pasta.sth_id).first()
 
-    # Documentos com URL de download
+    # ── Linhas: via STH → sth_linhas → linhas_tubulacao_catalogo ──────
+    linhas = []
+    if sth_obj:
+        for sth_linha in sth_obj.sth_linhas:
+            lc = sth_linha.linha_cat
+            if not lc:
+                continue
+            total_sp = db.query(func.count(Spool.id)).filter(
+                Spool.sth_id == sth_obj.id, Spool.linha_id == lc.id
+            ).scalar() or 0
+            linhas.append(LinhaCatalogoDetailResponse(
+                id=lc.id,
+                numero_linha=lc.numero_linha,
+                fluido=lc.fluido,
+                descricao_fluido=lc.descricao_fluido,
+                pressao_teste=lc.pressao_teste,
+                pressao_operacao=lc.pressao_operacao,
+                total_spools=total_sp,
+            ))
+    else:
+        # Fallback: linhas explicitamente vinculadas à pasta (tabela pasta_linhas)
+        for pl in pasta.linhas:
+            if pl.linha:
+                linhas.append(LinhaCatalogoDetailResponse(
+                    id=pl.linha.id,
+                    numero_linha=pl.linha.numero_linha,
+                    fluido=None,
+                    descricao_fluido=None,
+                    pressao_teste=pl.linha.pressao_teste,
+                    pressao_operacao=None,
+                    total_spools=0,
+                ))
+
+    # ── Spools: via STH → spools ──────────────────────────────────────
+    spools = []
+    if sth_obj:
+        for sp in sth_obj.spools:
+            spools.append(SpoolDetailResponse(
+                id=sp.id,
+                codigo_spool=sp.codigo_spool,
+                origem=sp.origem,
+                destino=sp.destino,
+                isometrico_ref=sp.isometrico_ref,
+                fluxograma=sp.fluxograma,
+                linha_id=sp.linha_id,
+                numero_linha=sp.linha_cat.numero_linha if sp.linha_cat else None,
+                criado_em=sp.criado_em,
+            ))
+
+    # ── Documentos com URL de download ────────────────────────────────
     documentos = [
         DocumentoResponse(
             id=doc.id,
@@ -146,7 +185,7 @@ def get_pasta(
         for doc in pasta.documentos
     ]
 
-    # Testes/templates associados
+    # ── Testes/templates associados ───────────────────────────────────
     testes = [
         PastaTesteResponse(
             id=pt.id,
@@ -160,30 +199,15 @@ def get_pasta(
         for pt in sorted(pasta.testes, key=lambda x: x.ordem)
     ]
 
-    # Spools do STH associado
-    spools = []
-    if pasta.sth_id:
-        sth = db.query(STH).filter(STH.id == pasta.sth_id).first()
-        if sth:
-            spools = [
-                {
-                    'id': s.id,
-                    'codigo_spool': s.codigo_spool,
-                    'origem': s.origem,
-                    'destino': s.destino,
-                    'isometrico_ref': s.isometrico_ref,
-                    'linha_id': s.linha_id,
-                    'numero_linha': s.linha_cat.numero_linha if s.linha_cat else None,
-                }
-                for s in sth.spools
-            ]
-
-    # Derivar disciplina a partir do SOP (Tubulação se tem SOP, senão vazio)
+    # ── Disciplina derivada do SOP ────────────────────────────────────
     disciplina = None
-    if pasta.sth_id:
-        sth = db.query(STH).filter(STH.id == pasta.sth_id).first()
-        if sth and sth.sop:
-            disciplina = "Tubulação"  # SOPs estão associados à Tubulação
+    if sth_obj and sth_obj.sop:
+        disciplina = "Tubulação"
+
+    # ── Pressão de teste: da pasta, ou derivar da 1ª linha ────────────
+    pressao = pasta.pressao_teste
+    if pressao is None and linhas:
+        pressao = linhas[0].pressao_teste
 
     total_relatorios = db.query(Relatorio).filter(Relatorio.pasta_id == pasta_id).count()
 
@@ -193,7 +217,7 @@ def get_pasta(
         sth=pasta.sth,
         sth_id=pasta.sth_id,
         descricao_sistema=pasta.descricao_sistema,
-        pressao_teste=pasta.pressao_teste,
+        pressao_teste=pressao,
         disciplina=disciplina,
         status=pasta.status.value if hasattr(pasta.status, 'value') else str(pasta.status),
         data_criacao=pasta.data_criacao,
