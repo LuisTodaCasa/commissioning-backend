@@ -312,15 +312,22 @@ def criar_pasta_por_sth(
     current_user=Depends(require_roles(["Administrador", "Engenharia"])),
 ):
     """Criar uma pasta de teste a partir de um STH."""
+    # 1. Buscar pelo ID informado
     sth = db.query(STH).filter(STH.id == payload.sth_id).first()
+
+    # 2. Se não encontrou por ID, buscar pelo código (caso o ID seja um ID local/IndexedDB)
+    if not sth and payload.codigo_sth:
+        sth = db.query(STH).filter(STH.codigo == payload.codigo_sth).first()
+        if sth:
+            logger.info(f"STH encontrado pelo código '{payload.codigo_sth}' (id real={sth.id}, id enviado={payload.sth_id})")
+
+    # 3. Se realmente não existe nem por ID nem por código, criar novo
     if not sth:
-        # Se STH não existe, criar um novo com os dados fornecidos
         if not payload.codigo_sth:
             raise HTTPException(400, "STH não encontrado e nenhum código foi fornecido para criação")
         
-        # Criar novo STH
+        # Criar novo STH (sem forçar o ID, deixar o banco gerar)
         sth = STH(
-            id=payload.sth_id,
             codigo=payload.codigo_sth,
             descricao=payload.descricao or "",
             sop=payload.sop,
@@ -329,8 +336,9 @@ def criar_pasta_por_sth(
         db.add(sth)
         try:
             db.flush()  # Flush to get the ID without committing
+            logger.info(f"Novo STH criado: codigo={payload.codigo_sth}, id={sth.id}")
         except Exception as e:
-            logger.error(f"Erro ao criar STH {payload.sth_id}: {e}")
+            logger.error(f"Erro ao criar STH '{payload.codigo_sth}': {e}")
             raise HTTPException(500, f"Erro ao criar STH: {str(e)}")
 
     # Verifica se já existe pasta para este STH
