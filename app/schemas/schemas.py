@@ -243,11 +243,41 @@ class PastaTesteDetail(BaseModel):
     data_criacao: Optional[datetime] = None
     criado_em: datetime
     atualizado_em: Optional[datetime] = None
-    linhas: List[LinhaResponse] = []
+    linhas: List["LinhaCatalogoDetailResponse"] = []
     documentos: List[DocumentoResponse] = []
     testes: List["PastaTesteResponse"] = []
     total_relatorios: int = 0
-    spools: List[dict] = []
+    spools: List["SpoolDetailResponse"] = []
+
+    class Config:
+        from_attributes = True
+
+
+class LinhaCatalogoDetailResponse(BaseModel):
+    """Linha do catálogo com campos completos para exibição na pasta."""
+    id: int
+    numero_linha: str
+    fluido: Optional[str] = None
+    descricao_fluido: Optional[str] = None
+    pressao_teste: Optional[float] = None
+    pressao_operacao: Optional[float] = None
+    total_spools: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class SpoolDetailResponse(BaseModel):
+    """Spool com campos completos para exibição na pasta."""
+    id: int
+    codigo_spool: str
+    origem: Optional[str] = None
+    destino: Optional[str] = None
+    isometrico_ref: Optional[str] = None
+    fluxograma: Optional[str] = None
+    linha_id: Optional[int] = None
+    numero_linha: Optional[str] = None
+    criado_em: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -657,3 +687,5 @@ class CriarPastaPorSTHRequest(BaseModel):
 UsuarioResponse.model_rebuild()
 TokenResponse.model_rebuild()
 PastaTesteDetail.model_rebuild()
+LinhaCatalogoDetailResponse.model_rebuild()
+SpoolDetailResponse.model_rebuild()
