@@ -168,10 +168,12 @@ def get_pasta(
             spools = [
                 {
                     'id': s.id,
-                    'codigo_spool': s.codigo,
+                    'codigo_spool': s.codigo_spool,
                     'origem': s.origem,
                     'destino': s.destino,
                     'isometrico_ref': s.isometrico_ref,
+                    'linha_id': s.linha_id,
+                    'numero_linha': s.linha_cat.numero_linha if s.linha_cat else None,
                 }
                 for s in sth.spools
             ]
