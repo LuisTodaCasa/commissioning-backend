@@ -3,14 +3,15 @@ import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_roles
 from app.models.models import (
     PastaTeste, PastaLinha, LinhaTubulacao, DocumentoPasta,
-    PastaTeste_Teste, Relatorio, StatusPasta, ModeloRelatorio, STH, Spool, STHLinha
+    PastaTeste_Teste, Relatorio, StatusPasta, ModeloRelatorio, STH, Spool, STHLinha,
+    LinhaTubulacaoCatalogo
 )
 from app.schemas.schemas import (
     PastaCreate, PastaUpdate, PastaResponse, PastaListResponse,
@@ -115,16 +116,29 @@ def get_pasta(
     db: Session = Depends(get_db)
 ):
     """Obter detalhes completos de uma pasta de teste (linhas, documentos, testes)."""
-    pasta = _get_pasta_or_404(pasta_id, db)
 
-    # ── Buscar STH uma única vez ──────────────────────────────────────
-    sth_obj = None
-    if pasta.sth_id:
-        sth_obj = db.query(STH).filter(STH.id == pasta.sth_id).first()
+    # Buscar pasta com eager loading do STH e suas relações
+    pasta = db.query(PastaTeste).options(
+        joinedload(PastaTeste.sth_ref)
+            .joinedload(STH.sth_linhas)
+            .joinedload(STHLinha.linha_cat),
+        joinedload(PastaTeste.sth_ref)
+            .joinedload(STH.spools)
+            .joinedload(Spool.linha_cat),
+        joinedload(PastaTeste.documentos),
+        joinedload(PastaTeste.testes),
+    ).filter(PastaTeste.id == pasta_id).first()
+
+    if not pasta:
+        raise HTTPException(status_code=404, detail="Pasta não encontrada.")
+
+    sth_obj = pasta.sth_ref
+    logger.info(f"[get_pasta] pasta_id={pasta_id}, sth_id={pasta.sth_id}, sth_obj={'SIM' if sth_obj else 'NAO'}")
 
     # ── Linhas: via STH → sth_linhas → linhas_tubulacao_catalogo ──────
     linhas = []
-    if sth_obj:
+    if sth_obj and sth_obj.sth_linhas:
+        logger.info(f"[get_pasta] STH {sth_obj.codigo} tem {len(sth_obj.sth_linhas)} sth_linhas")
         for sth_linha in sth_obj.sth_linhas:
             lc = sth_linha.linha_cat
             if not lc:
@@ -143,6 +157,7 @@ def get_pasta(
             ))
     else:
         # Fallback: linhas explicitamente vinculadas à pasta (tabela pasta_linhas)
+        logger.info(f"[get_pasta] Sem STH ou sem sth_linhas, tentando fallback pasta.linhas ({len(pasta.linhas) if pasta.linhas else 0})")
         for pl in pasta.linhas:
             if pl.linha:
                 linhas.append(LinhaCatalogoDetailResponse(
@@ -155,9 +170,11 @@ def get_pasta(
                     total_spools=0,
                 ))
 
+    logger.info(f"[get_pasta] Total linhas montadas: {len(linhas)}")
+
     # ── Spools: via STH → spools ──────────────────────────────────────
     spools = []
-    if sth_obj:
+    if sth_obj and sth_obj.spools:
         for sp in sth_obj.spools:
             spools.append(SpoolDetailResponse(
                 id=sp.id,
@@ -170,6 +187,8 @@ def get_pasta(
                 numero_linha=sp.linha_cat.numero_linha if sp.linha_cat else None,
                 criado_em=sp.criado_em,
             ))
+
+    logger.info(f"[get_pasta] Total spools montados: {len(spools)}")
 
     # ── Documentos com URL de download ────────────────────────────────
     documentos = [
@@ -210,6 +229,8 @@ def get_pasta(
         pressao = linhas[0].pressao_teste
 
     total_relatorios = db.query(Relatorio).filter(Relatorio.pasta_id == pasta_id).count()
+
+    logger.info(f"[get_pasta] Retornando: linhas={len(linhas)}, spools={len(spools)}, pressao={pressao}")
 
     return PastaTesteDetail(
         id=pasta.id,
@@ -572,3 +593,49 @@ def remove_teste_from_pasta(
     db.commit()
     logger.info(f"Template {template_id} removido da pasta {pasta_id}")
     return {"message": f"Template {template_id} removido da pasta com sucesso."}
+
+
+# ── Diagnóstico ──────────────────────────────────────────────
+
+@router.get("/debug/diagnostico")
+def diagnostico(db: Session = Depends(get_db)):
+    """Endpoint de diagnóstico para verificar estado do banco de dados."""
+    from app.models.models import LinhaTubulacaoCatalogo
+
+    sths = db.query(STH).all()
+    linhas = db.query(LinhaTubulacaoCatalogo).all()
+    pastas = db.query(PastaTeste).all()
+
+    return {
+        "total_sths": len(sths),
+        "sths": [
+            {
+                "id": s.id,
+                "codigo": s.codigo,
+                "total_linhas": len(s.sth_linhas) if s.sth_linhas else 0,
+                "total_spools": len(s.spools) if s.spools else 0,
+            }
+            for s in sths[:5]
+        ],
+        "total_linhas_catalogo": len(linhas),
+        "linhas_amostra": [
+            {
+                "id": lc.id,
+                "numero": lc.numero_linha,
+                "pressao_teste": lc.pressao_teste,
+                "fluido": lc.fluido,
+            }
+            for lc in linhas[:5]
+        ],
+        "total_pastas": len(pastas),
+        "pastas": [
+            {
+                "id": p.id,
+                "numero": p.numero_pasta,
+                "sth_id": p.sth_id,
+                "pressao_teste": p.pressao_teste,
+                "status": p.status.value if p.status else None,
+            }
+            for p in pastas
+        ],
+    }
