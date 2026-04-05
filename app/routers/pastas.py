@@ -135,6 +135,28 @@ def get_pasta(
     sth_obj = pasta.sth_ref
     logger.info(f"[get_pasta] pasta_id={pasta_id}, sth_id={pasta.sth_id}, sth_obj={'SIM' if sth_obj else 'NAO'}")
 
+    # FALLBACK: se sth_ref não foi carregado, buscar STH explicitamente pelo sth_id
+    if not sth_obj and pasta.sth_id:
+        sth_obj = db.query(STH).options(
+            joinedload(STH.sth_linhas).joinedload(STHLinha.linha_cat),
+            joinedload(STH.spools).joinedload(Spool.linha_cat),
+        ).filter(STH.id == pasta.sth_id).first()
+        if sth_obj:
+            logger.info(f"[get_pasta] STH carregado via fallback: id={sth_obj.id}, codigo={sth_obj.codigo}")
+
+    # FALLBACK 2: se sth_id não encontrou, buscar pelo código STH (campo texto)
+    if not sth_obj and pasta.sth:
+        sth_obj = db.query(STH).options(
+            joinedload(STH.sth_linhas).joinedload(STHLinha.linha_cat),
+            joinedload(STH.spools).joinedload(Spool.linha_cat),
+        ).filter(STH.codigo == pasta.sth).first()
+        if sth_obj:
+            logger.info(f"[get_pasta] STH carregado via fallback por código: {pasta.sth} -> id={sth_obj.id}")
+            # Corrigir o sth_id da pasta para apontar ao STH correto
+            pasta.sth_id = sth_obj.id
+            db.commit()
+            logger.info(f"[get_pasta] sth_id da pasta {pasta_id} corrigido para {sth_obj.id}")
+
     # ── Linhas: via STH → sth_linhas → linhas_tubulacao_catalogo ──────
     linhas = []
     if sth_obj and sth_obj.sth_linhas:
