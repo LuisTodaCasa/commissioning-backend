@@ -309,21 +309,23 @@ def criar_pasta_por_sth(
     current_user=Depends(require_roles(["Administrador", "Engenharia"])),
 ):
     """Criar uma pasta de teste a partir de um STH."""
-    # 1. Buscar pelo ID informado
-    sth = db.query(STH).filter(STH.id == payload.sth_id).first()
-
-    # 2. Se não encontrou por ID, buscar pelo código (caso o ID seja um ID local/IndexedDB)
-    if not sth and payload.codigo_sth:
+    # PRIORIDADE 1: Buscar STH pelo código (campo único e confiável)
+    sth = None
+    if payload.codigo_sth:
         sth = db.query(STH).filter(STH.codigo == payload.codigo_sth).first()
         if sth:
-            logger.info(f"STH encontrado pelo código '{payload.codigo_sth}' (id real={sth.id}, id enviado={payload.sth_id})")
+            logger.info(f"STH encontrado pelo código: {payload.codigo_sth} (id={sth.id})")
 
-    # 3. Se realmente não existe nem por ID nem por código, criar novo
+    # PRIORIDADE 2: Se não encontrou, tentar pelo ID enviado
+    if not sth and payload.sth_id:
+        sth = db.query(STH).filter(STH.id == payload.sth_id).first()
+        if sth:
+            logger.info(f"STH encontrado pelo ID: {payload.sth_id}")
+
+    # PRIORIDADE 3: Se não existe, criar novo STH (apenas com código)
     if not sth:
         if not payload.codigo_sth:
-            raise HTTPException(400, "STH não encontrado e nenhum código foi fornecido para criação")
-        
-        # Criar novo STH (sem forçar o ID, deixar o banco gerar)
+            raise HTTPException(400, "Código do STH é obrigatório para criar novo STH")
         sth = STH(
             codigo=payload.codigo_sth,
             descricao=payload.descricao or "",
@@ -331,14 +333,10 @@ def criar_pasta_por_sth(
             sub_sop=payload.ssop,
         )
         db.add(sth)
-        try:
-            db.flush()  # Flush to get the ID without committing
-            logger.info(f"Novo STH criado: codigo={payload.codigo_sth}, id={sth.id}")
-        except Exception as e:
-            logger.error(f"Erro ao criar STH '{payload.codigo_sth}': {e}")
-            raise HTTPException(500, f"Erro ao criar STH: {str(e)}")
+        db.flush()
+        logger.info(f"Novo STH criado: {payload.codigo_sth} (id={sth.id})")
 
-    # Verifica se já existe pasta para este STH
+    # Verificar se já existe pasta para este STH
     existing = db.query(PastaTeste).filter(PastaTeste.sth_id == sth.id).first()
     if existing:
         raise HTTPException(400, f"Já existe pasta '{existing.numero_pasta}' para este STH")
@@ -348,18 +346,13 @@ def criar_pasta_por_sth(
     if dup:
         raise HTTPException(400, f"Já existe uma pasta com o número '{payload.numero_pasta}'")
 
-    # Pega pressão de teste da primeira linha
-    first_link = db.query(STHLinha).filter(STHLinha.sth_id == sth.id).first()
-    pressao = None
-    if first_link and first_link.linha_cat:
-        pressao = first_link.linha_cat.pressao_teste
-
+    # Criar pasta vinculada ao STH REAL
     pasta = PastaTeste(
         numero_pasta=payload.numero_pasta,
         sth=sth.codigo,
         sth_id=sth.id,
         descricao_sistema=sth.descricao,
-        pressao_teste=pressao,
+        pressao_teste=None,
         status=StatusPasta.CRIADA,
         data_criacao=payload.data_criacao,
         criado_por_id=current_user.id,
@@ -377,7 +370,7 @@ def criar_pasta_por_sth(
         status=pasta.status.value if hasattr(pasta.status, 'value') else str(pasta.status),
         data_criacao=pasta.data_criacao,
         criado_em=pasta.criado_em,
-        atualizado_em=pasta.atualizado_em,
+        atualizado_em=getattr(pasta, 'atualizado_em', None),
         total_linhas=0,
         total_documentos=0,
         total_testes=0,
