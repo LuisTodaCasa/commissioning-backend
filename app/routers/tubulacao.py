@@ -299,8 +299,7 @@ def detalhe_sth(
         criado_em=sth.criado_em,
     )
 
-
-# ── POST /tubulacao/criar-pasta-por-sth ────────────────────────────────
+# ─── POST /tubulacao/criar-pasta-por-sth ────────────────────────────────
 
 @router.post("/criar-pasta-por-sth", response_model=PastaListResponse)
 def criar_pasta_por_sth(
@@ -308,7 +307,7 @@ def criar_pasta_por_sth(
     db: Session = Depends(get_db),
     current_user=Depends(require_roles(["Administrador", "Engenharia"])),
 ):
-    """Criar uma pasta de teste a partir de um STH."""
+    """Criar uma pasta de teste a partir de um STH e associar automaticamente suas linhas."""
     # PRIORIDADE 1: Buscar STH pelo código (campo único e confiável)
     sth = None
     if payload.codigo_sth:
@@ -352,14 +351,44 @@ def criar_pasta_por_sth(
         sth=sth.codigo,
         sth_id=sth.id,
         descricao_sistema=sth.descricao,
-        pressao_teste=None,
+        pressao_teste=None,  # Será atualizado abaixo se houver linhas
         status=StatusPasta.CRIADA,
         data_criacao=payload.data_criacao,
         criado_por_id=current_user.id,
     )
     db.add(pasta)
+    db.flush()  # Garante que pasta.id esteja disponível
+
+    # --- NOVA LÓGICA: Associar automaticamente todas as linhas do catálogo vinculadas ao STH ---
+    from app.models.models import LinhaTubulacaoCatalogo, PastaLinha
+
+    linhas_catalogo = db.query(LinhaTubulacaoCatalogo).filter(
+        LinhaTubulacaoCatalogo.sth_id == sth.id
+    ).all()
+
+    pressao_teste_valor = None
+    for linha in linhas_catalogo:
+        # Criar associação na tabela pasta_linhas
+        associacao = PastaLinha(
+            pasta_id=pasta.id,
+            linha_id=linha.id,
+        )
+        db.add(associacao)
+        # Usar a pressão de teste da primeira linha como valor da pasta
+        if pressao_teste_valor is None and linha.pressao_teste is not None:
+            pressao_teste_valor = linha.pressao_teste
+
+    if pressao_teste_valor is not None:
+        pasta.pressao_teste = pressao_teste_valor
+
+    logger.info(f"Pasta {pasta.numero_pasta} criada. {len(linhas_catalogo)} linhas associadas automaticamente.")
+    # --------------------------------------------------------------------------------------------
+
     db.commit()
     db.refresh(pasta)
+
+    # Contar linhas associadas para a resposta
+    total_linhas = len(linhas_catalogo)
 
     return PastaListResponse(
         id=pasta.id,
@@ -371,7 +400,7 @@ def criar_pasta_por_sth(
         data_criacao=pasta.data_criacao,
         criado_em=pasta.criado_em,
         atualizado_em=getattr(pasta, 'atualizado_em', None),
-        total_linhas=0,
+        total_linhas=total_linhas,
         total_documentos=0,
         total_testes=0,
     )
