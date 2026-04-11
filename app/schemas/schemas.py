@@ -193,7 +193,7 @@ class DocumentoLinhaResponse(BaseModel):
     """Resposta com dados do documento de linha."""
     id: int
     sth_id: int
-    linha_id: int
+    linha_id: Optional[int] = None
     tipo_documento: str
     nome_arquivo: Optional[str] = None
     tamanho_bytes: Optional[int] = None
