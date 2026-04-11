@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func
+from sqlalchemy import func, distinct
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_roles
@@ -157,6 +157,25 @@ def get_pasta(
             db.commit()
             logger.info(f"[get_pasta] sth_id da pasta {pasta_id} corrigido para {sth_obj.id}")
 
+    # --- NOVA LÓGICA: Contagem de documentos esperados ---
+    # Isométricos esperados = número de linhas associadas ao STH
+    isometricos_esperados = 0
+    if sth_obj:
+        isometricos_esperados = db.query(func.count(STHLinha.id)).filter(
+            STHLinha.sth_id == sth_obj.id
+        ).scalar() or 0
+
+    # Fluxogramas esperados = número de fluxogramas ÚNICOS nos spools do STH
+    fluxogramas_esperados = 0
+    if sth_obj:
+        fluxogramas_esperados = db.query(func.count(distinct(Spool.fluxograma))).filter(
+            Spool.sth_id == sth_obj.id,
+            Spool.fluxograma.isnot(None),
+            Spool.fluxograma != ''
+        ).scalar() or 0
+
+    logger.info(f"[get_pasta] isometricos_esperados={isometricos_esperados}, fluxogramas_esperados={fluxogramas_esperados}")
+
     # ── Linhas: via STH → sth_linhas → linhas_tubulacao_catalogo ──────
     linhas = []
     if sth_obj and sth_obj.sth_linhas:
@@ -192,7 +211,7 @@ def get_pasta(
                     total_spools=0,
                 ))
 
-    logger.info(f"[get_pasta] Total linhas montadas: {len(linhas)}")
+    logger.info(f"[get_pasta] Total de linhas montadas: {len(linhas)}")
 
     # ── Spools: via STH → spools ──────────────────────────────────────
     spools = []
@@ -210,7 +229,7 @@ def get_pasta(
                 criado_em=sp.criado_em,
             ))
 
-    logger.info(f"[get_pasta] Total spools montados: {len(spools)}")
+    logger.info(f"[get_pasta] Total de spools montados: {len(spools)}")
 
     # ── Documentos com URL de download ────────────────────────────────
     documentos = [
@@ -271,6 +290,8 @@ def get_pasta(
         testes=testes,
         spools=spools,
         total_relatorios=total_relatorios,
+        isometricos_esperados=isometricos_esperados,
+        fluxogramas_esperados=fluxogramas_esperados,
     )
 
 
