@@ -13,7 +13,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user, require_roles
 from app.models.models import (
     STH, LinhaTubulacaoCatalogo, STHLinha, Spool, PastaTeste, StatusPasta,
-    DocumentoLinha, TipoDocumento,
+    DocumentoLinha, TipoDocumento, PastaLinha,
 )
 from app.schemas.schemas import (
     STHListResponse, STHDetailResponse, LinhaCatalogoResponse,
@@ -359,24 +359,25 @@ def criar_pasta_por_sth(
     db.add(pasta)
     db.flush()  # Garante que pasta.id esteja disponível
 
-    # --- NOVA LÓGICA: Associar automaticamente todas as linhas do catálogo vinculadas ao STH ---
-    from app.models.models import LinhaTubulacaoCatalogo, PastaLinha
-
-    linhas_catalogo = db.query(LinhaTubulacaoCatalogo).filter(
-        LinhaTubulacaoCatalogo.sth_id == sth.id
-    ).all()
-
+    # --- CORREÇÃO: Buscar linhas associadas via STHLinha ---
+    # Buscar todos os registros de STHLinha para este STH
+    associacoes_sth = db.query(STHLinha).filter(STHLinha.sth_id == sth.id).all()
+    linhas_catalogo = []
     pressao_teste_valor = None
-    for linha in linhas_catalogo:
-        # Criar associação na tabela pasta_linhas
-        associacao = PastaLinha(
-            pasta_id=pasta.id,
-            linha_id=linha.id,
-        )
-        db.add(associacao)
-        # Usar a pressão de teste da primeira linha como valor da pasta
-        if pressao_teste_valor is None and linha.pressao_teste is not None:
-            pressao_teste_valor = linha.pressao_teste
+
+    for assoc in associacoes_sth:
+        linha = db.query(LinhaTubulacaoCatalogo).filter(LinhaTubulacaoCatalogo.id == assoc.linha_id).first()
+        if linha:
+            linhas_catalogo.append(linha)
+            # Criar associação na tabela pasta_linhas
+            pasta_linha = PastaLinha(
+                pasta_id=pasta.id,
+                linha_id=linha.id,
+            )
+            db.add(pasta_linha)
+            # Usar a pressão de teste da primeira linha como valor da pasta
+            if pressao_teste_valor is None and linha.pressao_teste is not None:
+                pressao_teste_valor = linha.pressao_teste
 
     if pressao_teste_valor is not None:
         pasta.pressao_teste = pressao_teste_valor
