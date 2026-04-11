@@ -248,6 +248,9 @@ class PastaTesteDetail(BaseModel):
     testes: List["PastaTesteResponse"] = []
     total_relatorios: int = 0
     spools: List["SpoolDetailResponse"] = []
+    # NOVOS CAMPOS
+    isometricos_esperados: int = 0
+    fluxogramas_esperados: int = 0
 
     class Config:
         from_attributes = True
