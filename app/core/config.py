@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = "dev-secret-key"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
+    R2_ACCESS_KEY_ID: str = ""
+    R2_SECRET_ACCESS_KEY: str = ""
+    R2_ENDPOINT_URL: str = ""
+    R2_BUCKET_NAME: str = ""
+    R2_PUBLIC_URL: str = ""
 
     # SMTP
     SMTP_HOST: str = "smtp.gmail.com"
