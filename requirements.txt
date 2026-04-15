@@ -17,3 +17,5 @@ aiofiles==23.2.1
 PyPDF2==3.0.1
 aiosmtplib==3.0.1
 jinja2==3.1.2
+boto3
+python-multipart
