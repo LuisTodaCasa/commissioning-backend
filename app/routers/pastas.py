@@ -641,7 +641,7 @@ def remove_teste_from_pasta(
 # ── Diagnóstico ──────────────────────────────────────────────
 
 @router.get("/debug/diagnostico")
-def diagnostico(db: Session = Depends(get_db)):
+def diagnostico(db: Session = Depends(get_db), current_user=Depends(require_roles(["Administrador"]))):
     """Endpoint de diagnóstico para verificar estado do banco de dados."""
     from app.models.models import LinhaTubulacaoCatalogo
 

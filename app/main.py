@@ -36,11 +36,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Criar tabelas automaticamente (para desenvolvimento)
-Base.metadata.create_all(bind=engine)
+# Criar tabelas automaticamente (apenas em desenvolvimento).
+# Em produção, use as migrações do Alembic: `alembic upgrade head`.
+if settings.APP_ENV == "development":
+    Base.metadata.create_all(bind=engine)
 
 # Criar diretório de uploads
 os.makedirs(os.path.join(settings.UPLOAD_DIR, "documentos"), exist_ok=True)
+os.makedirs(os.path.join(settings.UPLOAD_DIR, "documentos_linha"), exist_ok=True)
 os.makedirs(os.path.join(settings.UPLOAD_DIR, "templates"), exist_ok=True)
 
 # Registrar routers

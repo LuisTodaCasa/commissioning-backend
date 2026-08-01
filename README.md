@@ -34,6 +34,57 @@ commissioning_system_backend/
 └── README.md
 ```
 
+## 🚀 Deploy Automático (GitHub → Abacus.AI)
+
+### Configuração do Banco Neon (PostgreSQL)
+
+1. Acesse [neon.tech](https://neon.tech) e crie um projeto
+2. Copie a connection string no formato:
+   ```
+   postgresql://user:pass@ep-xxx.us-east-1.aws.neon.tech/neondb?sslmode=require
+   ```
+
+### Variáveis de Ambiente no Abacus.AI
+
+Configure as seguintes variáveis no painel do Abacus.AI:
+
+| Variável | Descrição |
+|----------|-----------|
+| `DATABASE_URL` | Connection string do Neon PostgreSQL |
+| `JWT_SECRET_KEY` | Chave secreta JWT (gere com `openssl rand -hex 32`) |
+| `CORS_ORIGINS` | JSON array com domínios do frontend |
+| `APP_ENV` | Defina como `production` |
+| `UPLOAD_DIR` | Diretório de uploads (ex: `/app/uploads`) |
+
+### Gerando JWT_SECRET_KEY
+
+```bash
+openssl rand -hex 32
+```
+
+### Processo de Deploy
+
+1. Configure as variáveis de ambiente no Abacus.AI
+2. Conecte o repositório GitHub (`LuisTodaCasa/commissioning-backend`)
+3. O Abacus executará automaticamente `deploy.sh` a cada push na branch `main`
+4. O script:
+   - Instala dependências Python
+   - Executa `alembic upgrade head` (migrações)
+   - Executa `seed.py` (cria admin padrão se não existir)
+
+### Procfile (Heroku/Railway compatível)
+
+```
+web: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
+
+### Verificação pós-deploy
+
+Após o deploy, verifique:
+- `GET /health` → `{"status": "ok", "database": "connected"}`
+- `GET /docs` → Swagger UI
+- Login com `admin@commissioning.com` / `admin123`
+
 ## 🚀 Instalação
 
 ### 1. Pré-requisitos

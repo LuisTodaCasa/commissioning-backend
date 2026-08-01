@@ -1,0 +1,47 @@
+# ── Python ──────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+
+# ── Ambientes virtuais ──────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Variáveis de ambiente (NÃO versionar segredos) ──────
+.env
+.env.*
+# Manter os arquivos de exemplo versionados
+!.env.example
+!.env.production.example
+
+# ── Uploads e arquivos gerados em runtime ───────────────
+uploads/
+*.log
+
+# ── Banco de dados local ────────────────────────────────
+*.sqlite3
+*.db
+
+# ── Testes / cobertura ──────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# ── IDEs / SO ───────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ── Node (scripts auxiliares) ───────────────────────────
+node_modules/
