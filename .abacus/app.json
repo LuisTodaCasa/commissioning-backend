@@ -1,0 +1,23 @@
+{
+  "name": "commissioning-backend",
+  "type": "python",
+  "pythonVersion": "3.11",
+  "buildCommand": "pip install -r requirements.txt",
+  "startCommand": "uvicorn app.main:app --host 0.0.0.0 --port $PORT",
+  "deployScript": "./deploy.sh",
+  "healthCheckPath": "/health",
+  "envVars": {
+    "DATABASE_URL":    "postgresql://USER:PASS@EP-HOST.neon.tech/neondb?sslmode=require",
+    "JWT_SECRET_KEY":  "GERAR_COM: openssl rand -hex 32",
+    "CORS_ORIGINS":    "[\"https://commissioning-frontend-XXXX.abacus.ai\"]",
+    "APP_ENV":         "production",
+    "APP_DEBUG":       "false",
+    "UPLOAD_DIR":      "/app/uploads",
+    "LOG_LEVEL":       "INFO"
+  },
+  "_instrucoes": {
+    "DATABASE_URL":   "Cole a connection string do Neon PostgreSQL (inclua ?sslmode=require)",
+    "JWT_SECRET_KEY": "Execute: openssl rand -hex 32  e cole o resultado",
+    "CORS_ORIGINS":   "Substitua pela URL real do frontend apos criar o app no Abacus"
+  }
+}

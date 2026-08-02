@@ -15,13 +15,9 @@ mkdir -p ${UPLOAD_DIR:-./uploads}/documentos
 mkdir -p ${UPLOAD_DIR:-./uploads}/documentos_linha
 mkdir -p ${UPLOAD_DIR:-./uploads}/templates
 
-# 3. Executar migrações
-echo "[3/4] Executando migrações do banco..."
-alembic upgrade head
-
-# 4. Popular dados iniciais (apenas se admin não existir)
-echo "[4/4] Verificando dados iniciais..."
-python seed.py
+# 3. Executar pós-deploy (migrações + seed)
+echo "[3/4] Executando pós-deploy (migrações e seed)..."
+bash scripts/post-deploy.sh
 
 echo "==============================="
 echo "  Deploy concluído com sucesso!"
