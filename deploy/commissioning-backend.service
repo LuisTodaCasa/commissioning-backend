@@ -1,0 +1,16 @@
+[Unit]
+Description=Commissioning Backend API
+After=network-online.target
+Wants=network-online.target
+RequiresMountsFor=/home/ubuntu
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/github_repos/commissioning-backend
+EnvironmentFile=/home/ubuntu/github_repos/commissioning-backend/.env
+ExecStart=/opt/abacus-python/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
