@@ -8,9 +8,9 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.database import get_db
 from app.core.security import (
     hash_password, verify_password, create_access_token,
-    create_reset_token, decode_token, get_current_user
+    create_reset_token, decode_token, get_current_user, require_roles
 )
-from app.models.models import Usuario, UsuarioDisciplina, Disciplina
+from app.models.models import Usuario, UsuarioDisciplina, Disciplina, RoleEnum
 from app.schemas.schemas import (
     LoginRequest, TokenResponse, UsuarioCreate, UsuarioResponse,
     PasswordResetRequest, PasswordResetConfirm, DisciplinaSimples
@@ -54,8 +54,16 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/register", response_model=UsuarioResponse, status_code=201)
-def register(data: UsuarioCreate, db: Session = Depends(get_db)):
-    """Registrar novo usuário."""
+def register(
+    data: UsuarioCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles(["Administrador"])),
+):
+    """Registrar novo usuário. Restrito a Administrador."""
+    valid_roles = {r.value for r in RoleEnum}
+    if data.role not in valid_roles:
+        raise HTTPException(status_code=422, detail="Role inválida.")
+
     existing = db.query(Usuario).filter(Usuario.email == data.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="E-mail já cadastrado.")
