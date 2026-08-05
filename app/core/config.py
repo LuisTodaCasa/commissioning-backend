@@ -6,7 +6,7 @@ from typing import List
 
 class Settings(BaseSettings):
     # Database
-    DATABASE_URL: str = "postgresql://postgres:testpassword@localhost:5432/commissioning_db"
+    DATABASE_URL: str = ""
 
     # JWT
     JWT_SECRET_KEY: str = "dev-secret-key"
